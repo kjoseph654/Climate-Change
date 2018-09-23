@@ -1,0 +1,381 @@
+---
+title: "BCSD versus Loca"
+output: rmarkdown::github_document
+---
+
+
+
+Loading the required packages to create a subplot containing four different plots.
+```{r}
+require(plyr)
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(ggpubr)
+require(zoo)
+library(reshape2)
+```
+
+Loading in all of the Loca data.
+```{r}
+PR1975<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171708cr5lsa_7LZ7Cz/loca5/pr_SpatialStat_mean.csv",header=FALSE)
+PR2000<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171708cr5lsa_jxNaGt/loca5/pr_SpatialStat_mean.csv",header=FALSE)
+PR2025<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_rRD8k1/loca5/pr_SpatialStat_mean.csv",header=FALSE)
+PR2050<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_RJaKSl/loca5/pr_SpatialStat_mean.csv",header=FALSE)
+PR2075<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_JybujU/loca5/pr_SpatialStat_mean.csv",header=FALSE)
+PR2099<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_CBa0G6/loca5/pr_SpatialStat_mean.csv",header=FALSE)
+
+TMax1975<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171708cr5lsa_7LZ7Cz/loca5/tasmax_SpatialStat_mean.csv",header=FALSE)
+TMax2000<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171708cr5lsa_jxNaGt/loca5/tasmax_SpatialStat_mean.csv",header=FALSE)
+TMax2025<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_rRD8k1/loca5/tasmax_SpatialStat_mean.csv",header=FALSE)
+TMax2050<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_RJaKSl/loca5/tasmax_SpatialStat_mean.csv",header=FALSE)
+TMax2075<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_JybujU/loca5/tasmax_SpatialStat_mean.csv",header=FALSE)
+TMax2099<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_CBa0G6/loca5/tasmax_SpatialStat_mean.csv",header=FALSE)
+
+TMin1975<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171708cr5lsa_7LZ7Cz/loca5/tasmin_SpatialStat_mean.csv",header=FALSE)
+TMin2000<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171708cr5lsa_jxNaGt/loca5/tasmin_SpatialStat_mean.csv",header=FALSE)
+TMin2025<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_rRD8k1/loca5/tasmin_SpatialStat_mean.csv",header=FALSE)
+TMin2050<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_RJaKSl/loca5/tasmin_SpatialStat_mean.csv",header=FALSE)
+TMin2075<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_JybujU/loca5/tasmin_SpatialStat_mean.csv",header=FALSE)
+TMin2099<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807171709cr5lsa_CBa0G6/loca5/tasmin_SpatialStat_mean.csv",header=FALSE)
+```
+
+Loading in all of the BCSD data.
+```{r}
+surfTemp<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807102237cr5msa_eMzfJx/bcsd5/tas_SpatialStat_mean.csv",header=FALSE)
+PrecRate<-read.csv("ftp://gdo-dcp.ucllnl.org/pub/dcp/subset/201807102237cr5msa_eMzfJx/bcsd5/pr_SpatialStat_mean.csv",header=FALSE)
+```
+
+Combining all of the Loca data into one data frame, since the file was too big to download into one.
+```{r}
+PRLoca<-rbind(PR1975,PR2000,PR2025,PR2050,PR2075,PR2099)
+TMaxLoca<-rbind(TMax1975,TMax2000,TMax2025,TMax2050,TMax2075,TMax2099)
+TMinLoca<-rbind(TMin1975,TMin2000,TMin2025,TMin2050,TMin2075,TMin2099)
+```
+
+Creating a new data frame to take the averages of the Max and Min temperatures of the Loca data to get the mean daily temperature.
+```{r}
+TAvgLoca<-data.frame(matrix(ncol=35,nrow=54787))
+```
+
+The sixth column did not produce an output for December 31, 2099, and it entered the data in string format. I had to convert it to the numerical class so I could easily manipulate the data.
+```{r}
+TMaxLoca[54787,6]<-0
+TMinLoca[54787,6]<-0
+
+TMaxLoca$V6<-as.numeric(as.character(TMaxLoca$V6))
+TMinLoca$V6<-as.numeric(as.character(TMinLoca$V6))
+PRLoca$V6<-as.numeric(as.character(PRLoca$V6))
+```
+
+This for loop takes the data for the temperatures and averages it, putting it into the data frame created above. The first three columns are left blank because thats where the date columns go.
+```{r}
+for (i in 4:35)
+{
+  for (j in 1:54787)
+  {
+    TAvgLoca[j,i]<-(TMaxLoca[j,i]+TMinLoca[j,i])/2
+  }
+}
+
+```
+
+Here I negated the data from December 31, 2099 from the sixth column since the data doesnt exist, and I also added in the missing date columns in the mean temperature data frame.
+```{r}
+TAvgLoca[54787,6]<-NA
+PRLoca[54787,6]<-NA
+
+TAvgLoca[,1:3]<-TMaxLoca[,1:3]
+```
+
+Assigning headers to the columns of the LOCA and BCSD data.
+```{r}
+names(PRLoca)<-c("date","month","day","access1-0.1","access1-3","bcc-csm1-1","bcc-csm1-1-m","canesm2","ccsm4",
+                 "cesm1-bgc","cesm1-cam55","cmcc-cm","cnrm-cm5","csiro-mk3-6-0","ec-earth","fgoals-g2","gfdl-cm3",
+                 "gfdl-esm2g","gfdl-esm2m","giss-e2-r","hadgem2-ao","hadgem2-cc","hadgem2-es","inmcm4","ipsl-cm5a-lr",
+                 "ipsl-cm5a-mr","miroc-esm","miroc-esm-chem","miroc5","mpi-esm-lr","mpi-esm-mr","mri-cgcm3",
+                 "noresm1-m","cmcc-cms","giss-e2-h")
+
+names(TAvgLoca)<-c("date","month","day","access1-0.1","access1-3","bcc-csm1-1","bcc-csm1-1-m","canesm2","ccsm4",
+                   "cesm1-bgc","cesm1-cam55","cmcc-cm","cnrm-cm5","csiro-mk3-6-0","ec-earth","fgoals-g2","gfdl-cm3",
+                   "gfdl-esm2g","gfdl-esm2m","giss-e2-r","hadgem2-ao","hadgem2-cc","hadgem2-es","inmcm4",
+                   "ipsl-cm5a-lr","ipsl-cm5a-mr","miroc-esm","miroc-esm-chem","miroc5","mpi-esm-lr","mpi-esm-mr",
+                   "mri-cgcm3","noresm1-m","cmcc-cms","giss-e2-h")
+
+names(surfTemp)<-c("year","date", "access1-0","access1-3","bcc-csm1-1","bcc-csm-1-1-m","canesm2","ccsm4","cesm1-bgc",
+                   "cesm1-cam5","cmcc-cm","cnrm-cm5","csiro-mk3-6-0","EC_EARTH","fgoals-g2","fgoals-s2","fio-esm",
+                   "gfdl-cm3","gfdl-esm2g","gfdl-esm2m","giss-e2-r","hadgem2-ao","hadgem2-cc","hadgem2-es","inmcm4",
+                   "ipsl-cm5a-lr","ipsl-cm5a-mr","ipsl-cm5b-lr","miroc-esm","miroc-esm-chem","miroc5","mpi-esm-lr",
+                   "mpi-esm-mr","mri-cgcm3","noresm1-m","noresm1-me")
+names(PrecRate)<-c("year","date", "access1-0","access1-3","bcc-csm1-1","bcc-csm-1-1-m","canesm2","ccsm4","cesm1-bgc",
+                   "cesm1-cam5","cmcc-cm","cnrm-cm5","csiro-mk3-6-0","EC-EARTH","fgoals-g2","fgoals-s2","fio-esm",
+                   "gfdl-cm3","gfdl-esm2g","gfdl-esm2m","giss-e2-r","hadgem2-ao","hadgem2-cc","hadgem2-es","inmcm4",
+                   "ipsl-cm5a-lr","ipsl-cm5a-mr","ipsl-cm5b-lr","miroc-esm","miroc-esm-chem","miroc5","mpi-esm-lr",
+                   "mpi-esm-mr","mri-cgcm3","noresm1-m","noresm1-me")
+```
+
+Here I combined the data formats of all the data frames into a single column.
+```{r}
+#BCSD
+surfTemp$date <-paste(surfTemp$year,surfTemp$date,sep="-")
+PrecRate$date <-paste(PrecRate$year,PrecRate$date,sep="-")
+
+surfTemp$date<-as.yearmon(as.character(surfTemp$date),format="%Y-%m")
+PrecRate$date<-as.yearmon(as.character(PrecRate$date),format="%Y-%m")
+
+surfTemp<-surfTemp[,-1]
+PrecRate<-PrecRate[,-1]
+#LOCA
+PRLoca$date <-paste(PRLoca$date,PRLoca$month,PRLoca$day,sep="-")
+TAvgLoca$date <-paste(TAvgLoca$date,TAvgLoca$month,TAvgLoca$day,sep="-")
+
+PRLoca$date<-as.Date(as.character(PRLoca$date),format="%Y-%m-%d")
+TAvgLoca$date<-as.Date(as.character(TAvgLoca$date),format="%Y-%m-%d")
+
+PRLoca<-PRLoca[,-c(2:3)]
+TAvgLoca<-TAvgLoca[,-c(2:3)]
+```
+
+Here I took the mean of all the data points over the period Jan 1950-Dec 1999 and the period Jan 2025-Dec 2054 and stored it into a vector for the BCSD data. For the temperature, I calculated the change in temperature from the earlier time period to the later in degrees Celsius. For the precipitation rate, I calculated the PERCENT change in precipitation rate to best show the changes in precipitation from one time period to the next.
+```{r}
+SATMean1999<-rep(0,34)
+SATMean2054<-rep(0,34)
+PRMean1999<-rep(0,34)
+PRMean2054<-rep(0,34)
+for (i in 2:35)
+{
+  SATMean1999[i-1]<-mean(surfTemp[which(grepl("Jan 1950", surfTemp$date)):which(grepl("Dec 1999",surfTemp$date)),i])
+  SATMean2054[i-1]<-mean(surfTemp[which(grepl("Jan 2025", surfTemp$date)):which(grepl("Dec 2054",surfTemp$date)),i])
+  PRMean1999[i-1]<-mean(PrecRate[which(grepl("Jan 1950", PrecRate$date)):which(grepl("Dec 1999", PrecRate$date)),i])
+  PRMean2054[i-1]<-mean(PrecRate[which(grepl("Jan 2025", PrecRate$date)):which(grepl("Dec 2054", PrecRate$date)),i])
+}
+
+SATdiff<-SATMean2054-SATMean1999
+PRdiff<-(PRMean2054-PRMean1999)*100/PRMean1999
+```
+
+The same was done for the LOCA data.
+```{r}
+TAvg99<-rep(0,32)
+TAvg54<-rep(0,32)
+PR99<-rep(0,32)
+PR54<-rep(0,32)
+for (i in 2:33)
+{     
+  TAvg99[i-1]<-mean(TAvgLoca[which(grepl("1950-01-01", TAvgLoca$date)):which(grepl("1999-12-31",TAvgLoca$date)),i])
+  TAvg54[i-1]<-mean(TAvgLoca[which(grepl("2025-01-01", TAvgLoca$date)):which(grepl("2054-12-31",TAvgLoca$date)),i])
+  PR99[i-1]<-mean(PRLoca[which(grepl("1950-01-01", PRLoca$date)):which(grepl("1999-12-31", PRLoca$date)),i])
+  PR54[i-1]<-mean(PRLoca[which(grepl("2025-01-01", PRLoca$date)):which(grepl("2054-12-31", PRLoca$date)),i])
+}
+
+TLocaDiff<-TAvg54-TAvg99
+PRLocaDiff<-(PR54-PR99)*100/PR99
+```
+
+Here I combined the two new vectors for the BCSD data and created a data frame to use in ggplot.
+SATPR 2 contains the original 10 models
+SATPR 3 contains the new 9 models
+SATPR 4 contains the overlapping models
+```{r}
+SATPR<-data.frame(SATdiff,PRdiff) #creating datasets using the calculations to plot
+SATPR1<-t(data.frame(SATdiff,PRdiff))
+SATPR1<-data.frame(SATPR1)
+SATPR2<-SATPR[c(30,17,32,33,11,23,5,10,29),]
+SATPR3<-SATPR[c(1,7,16,21,22,5,10,29),]
+SATPR4<-SATPR[c(5,10,29),]
+
+SATPR5<-SATPR[c(30,17,32,33,11,23,5,10,29),]
+SATPR6<-SATPR[c(1,7,16,21,22,5,10,29),]
+SATPR7<-SATPR[c(5,10,29),]
+names(SATPR5)<-c("TLocaDiff","PRLocaDiff")
+names(SATPR6)<-c("TLocaDiff","PRLocaDiff")
+names(SATPR7)<-c("TLocaDiff","PRLocaDiff")
+```
+
+The same was done for the LOCA data.
+PRTLoca2 contains the original 10 models
+PRTLoca3 contains the new 9 models (skipping number 31 since BCSD doesnt have the model)
+PRTLoca4 contains the overlapping models
+PRTLoca5 contains the new and the original models.
+```{r}
+PRTLoca<-data.frame(TLocaDiff,PRLocaDiff)
+PRTLoca1<-t(data.frame(TLocaDiff,PRLocaDiff))
+PRTLoca1<-data.frame(PRTLoca1)
+PRTLoca2<-PRTLoca[c(5,10,26,27,29,30,15,11,21),]
+PRTLoca3<-PRTLoca[c(1,5,7,10,14,19,20,26),]
+PRTLoca4<-PRTLoca[c(5,10,26),]
+PRTLoca5<-PRTLoca[c(1,5,7,14,19,20,10,26,27,29,30,15,11,21),]
+PRTLoca8<-PRTLoca[c(5,10,26,27,29,30,15,11,21),]
+PRTLoca9<-PRTLoca[c(1,5,7,10,14,19,20,26),]
+PRTLoca10<-PRTLoca[c(5,10,26),]
+```
+
+PRTLoca 6 is a direct comparison of the new 9 models from BCSD and LOCA downscaling
+PRTLoca 7 is a direct comparison of the original 10 models from BCSD and LOCA downscaling
+```{r}
+PRTLoca6<-rbind(PRTLoca9,SATPR6)
+PRTLoca7<-rbind(PRTLoca8,SATPR5)
+```
+
+including the mean points as reference points in the plots
+```{r}
+MSATPR5<-rep(0,2)
+MSATPR6<-rep(0,2)
+MPRTLoca8<-rep(0,2)
+MPRTLoca9<-rep(0,2)
+M1SATPR5<-rep(0,2)
+M1SATPR6<-rep(0,2)
+M1PRTLoca8<-rep(0,2)
+M1PRTLoca9<-rep(0,2)
+M2SATPR5<-rep(0,2)
+M2SATPR6<-rep(0,2)
+M2PRTLoca8<-rep(0,2)
+M2PRTLoca9<-rep(0,2)
+for (i in 1:2)
+{
+  MSATPR5[i]<-mean(SATPR5[1:9,i])
+  MSATPR6[i]<-mean(SATPR6[1:8,i])
+  MPRTLoca8[i]<-mean(PRTLoca8[1:9,i])
+  MPRTLoca9[i]<-mean(PRTLoca9[1:8,i])
+  M1SATPR5[i]<-max(SATPR5[1:9,i])
+  M1SATPR6[i]<-max(SATPR6[1:8,i])
+  M1PRTLoca8[i]<-max(PRTLoca8[1:9,i])
+  M1PRTLoca9[i]<-max(PRTLoca9[1:8,i])
+  M2SATPR5[i]<-min(SATPR5[1:9,i])
+  M2SATPR6[i]<-min(SATPR6[1:8,i])
+  M2PRTLoca8[i]<-min(PRTLoca8[1:9,i])
+  M2PRTLoca9[i]<-min(PRTLoca9[1:8,i])
+}
+
+mean<-round(c(MSATPR5,MSATPR6,MPRTLoca8,MPRTLoca9),digits=3)
+max<-round(c(M1SATPR5,M1SATPR6,M1PRTLoca8,M1PRTLoca9),digits=3)
+min<-round(c(M2SATPR5,M2SATPR6,M2PRTLoca8,M2PRTLoca9),digits=3)
+
+table1<-t(matrix(c(mean[1:4],max[1:4],min[1:4]),nrow=4,ncol=3))
+colnames(table1)<-c("Temp BCSD Orig","PR BCSD Orig","Temp BCSD DWR","PR BCSD DWR")
+rownames(table1)<-c("Mean","Max","Min")
+table<-as.table(table1)
+write.table(table,file="values.txt",sep=",")
+
+table2<-t(matrix(c(mean[5:8],max[5:8],min[5:8]),nrow=4,ncol=3))
+colnames(table2)<-c("Temp LOCA Orig","PR LOCA Orig","Temp LOCA DWR","PR LOCA DWR")
+rownames(table2)<-c("Mean","Max","Min")
+table3<-as.table(table2)
+write.table(table2,file="values1.txt",sep=",")
+
+MSATPR5<-data.frame(MSATPR5[1],MSATPR5[2])
+MSATPR6<-data.frame(MSATPR6[1],MSATPR6[2])
+MPRTLoca8<-data.frame(MPRTLoca8[1],MPRTLoca8[2])
+MPRTLoca9<-data.frame(MPRTLoca9[1],MPRTLoca9[2])
+names(MSATPR5)<-c("TLocaDiff","PRLocaDiff")
+names(MSATPR6)<-c("TLocaDiff","PRLocaDiff")
+names(MPRTLoca8)<-c("TLocaDiff","PRLocaDiff")
+names(MPRTLoca9)<-c("TLocaDiff","PRLocaDiff")
+
+MSATPR1<-data.frame(mean(SATPR2$SATdiff),mean(SATPR2$PRdiff))
+MSATPR2<-data.frame(mean(SATPR3$SATdiff),mean(SATPR3$PRdiff))
+names(MSATPR1)<-c("SATdiff","PRdiff")
+names(MSATPR2)<-c("SATdiff","PRdiff")
+MPRTLoca1<-data.frame(mean(PRTLoca2$TLocaDiff),mean(PRTLoca2$PRLocaDiff))
+MPRTLoca2<-data.frame(mean(PRTLoca3$TLocaDiff),mean(PRTLoca3$PRLocaDiff))
+names(MPRTLoca1)<-c("TLocaDiff","PRLocaDiff")
+names(MPRTLoca2)<-c("TLocaDiff","PRLocaDiff")
+```
+
+the ggplot for the BCSD data, with a 75% confidence interval ellipse
+```{r}
+BCSD75<-ggplot(SATPR, aes(x=PRdiff,y=SATdiff))+
+       geom_point(size=4, aes(color="All Other"))+
+       geom_point(data=SATPR2,size=4, aes(color="Original"))+
+       geom_point(data=SATPR3,size=4, aes(color="DWR"))+
+       geom_point(data=SATPR4,size=4, aes(color="Overlap"))+
+       geom_point(data=MSATPR1,size=4, aes(color="Original",shape="Original Mean"))+
+       geom_point(data=MSATPR2,size=4, aes(color="DWR",shape="DWR Mean"))+
+       geom_point(colour="black", pch=21,size=4)+
+       scale_color_manual(name="Models",values=c("All Other"="gray60","Original"="red","DWR"="blue","Overlap"="mediumpurple1"))+
+       scale_shape_manual(name="Mean Values",values=c(4,4))+
+       guides(fill=guide_legend(title="Models"))+
+       xlab("Change in Precipitation (%)")+
+       ylab("Change in Temperature (°C)")+
+       theme_bw()+
+       scale_x_continuous(breaks = seq(-20,25,by=5),limits=c(-20,25),expand=c(0,0))+
+       scale_y_continuous(breaks = seq(1,3,by=0.5),limits=c(1,3),expand=c(0,0))+
+       geom_vline(xintercept=0)+
+       stat_ellipse(data=SATPR2,level=0.75, aes(color="Original"))+
+       stat_ellipse(data=SATPR3,level=0.75, aes(color="DWR"))
+
+```
+
+the ggplot for the LOCA data, with a 75% confidence interval ellipse
+```{r}
+LOCA75<-ggplot(PRTLoca, aes(x=PRLocaDiff,y=TLocaDiff))+
+  geom_point(size=4, aes(color="All Other"))+
+  geom_point(data=PRTLoca2,size=4, aes(color="Original"))+
+  geom_point(data=PRTLoca3,size=4, aes(color="DWR"))+
+  geom_point(data=PRTLoca4,size=4, aes(color="Overlap"))+
+  geom_point(data=MPRTLoca1,size=4, aes(color="Original",shape="Original Mean"))+
+  geom_point(data=MPRTLoca2,size=4, aes(color="DWR",shape="DWR Mean"))+
+  geom_point(colour="black", pch=21,size=4)+
+  scale_color_manual(name="Models",values=c("All Other"="gray60","Original"="red","DWR"="blue","Overlap"="mediumpurple1"))+
+  scale_shape_manual(name="Mean Values",values=c(4,4))+
+  guides(fill=guide_legend(title="Models"))+
+  xlab("Change in Precipitation (%)")+
+  ylab("Change in Temperature (°C)")+
+  theme_bw()+
+  scale_x_continuous(breaks = seq(-20,25,by=5),limits=c(-20,25),expand=c(0,0))+
+  scale_y_continuous(breaks = seq(1,3,by=0.5),limits=c(1,3),expand=c(0,0))+
+  geom_vline(xintercept=0)+
+  stat_ellipse(data=PRTLoca2,level=0.75, aes(color="Original"))+
+  stat_ellipse(data=PRTLoca3,level=0.75, aes(color="DWR"))
+
+```
+
+Original 10 models, side by side comparison
+```{r}
+ORGNL<-ggplot(PRTLoca7, aes(x=PRLocaDiff,y=TLocaDiff))+
+  geom_point(size=4)+
+  geom_point(data=PRTLoca2,size=4, aes(color="LOCA (Original)"))+
+  geom_point(data=SATPR5,size=4, aes(color="BCSD (Original)"))+
+  geom_point(data=MSATPR5,size=4,aes(color="BCSD (Original)",shape="BCSD Mean"))+
+  geom_point(data=MPRTLoca8,size=4,aes(color="LOCA (Original)",shape="LOCA Mean"))+
+  geom_point(colour="black", pch=21,size=4)+
+  scale_color_manual(name="Models",values=c("LOCA (Original)"="red","BCSD (Original)"="blue"))+
+  scale_shape_manual(name="Mean Values",values=c(4,4))+
+  guides(fill=guide_legend(title="Models"))+
+  xlab("Change in Precipitation (%)")+
+  ylab("Change in Temperature (°C)")+
+  theme_bw()+
+  scale_x_continuous(breaks = seq(-20,25,by=5),limits=c(-20,25),expand=c(0,0))+
+  scale_y_continuous(breaks = seq(1,3,by=0.5),limits=c(1,3),expand=c(0,0))+
+  geom_vline(xintercept=0)+
+  stat_ellipse(data=PRTLoca2,level=0.75, aes(color="LOCA (Original)"))+
+  stat_ellipse(data=SATPR5,level=0.75, aes(color="BCSD (Original)"))
+```
+
+New 9 models, side by side comparison
+```{r}
+NEW<-ggplot(PRTLoca6, aes(x=PRLocaDiff,y=TLocaDiff))+
+  geom_point(size=4)+
+  geom_point(data=PRTLoca3,size=4, aes(color="LOCA (DWR)"))+
+  geom_point(data=SATPR6,size=4, aes(color="BCSD (DWR)"))+
+  geom_point(data=MSATPR6,size=4,aes(color="BCSD (DWR)",shape="BCSD Mean"))+
+  geom_point(data=MPRTLoca9,size=4,aes(color="LOCA (DWR)",shape="LOCA Mean"))+
+  geom_point(colour="black", pch=21,size=4)+
+  scale_color_manual(name="Models",values=c("LOCA (DWR)"="red","BCSD (DWR)"="blue"))+
+  scale_shape_manual(name="Mean Values",values=c(4,4))+
+  xlab("Change in Precipitation (%)")+
+  ylab("Change in Temperature (°C)")+
+  theme_bw()+
+  scale_x_continuous(breaks = seq(-20,25,by=5),limits=c(-20,25),expand=c(0,0))+
+  scale_y_continuous(breaks = seq(1,3, by=0.5),limits=c(1,3),expand=c(0,0))+
+  geom_vline(xintercept=0)+
+  stat_ellipse(data=PRTLoca3,level=0.75, aes(color="LOCA (DWR)"))+
+  stat_ellipse(data=SATPR6,level=0.75, aes(color="BCSD (DWR)"))
+```
+
+
+```{r}
+Final<-ggarrange(BCSD75,LOCA75,ORGNL,NEW, labels=c("BCSD Data","LOCA Data","Original Models","DWR Models"),ncol=2,nrow=2)
+Final
+```
+
