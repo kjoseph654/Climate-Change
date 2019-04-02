@@ -1,0 +1,141 @@
+---
+title: "SPEI Data"
+author: "Kenny Joseph"
+date: "December 11, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Required packages.
+```{r, include=FALSE}
+require(plyr)
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+require(ggpubr)
+require(zoo)
+require(reshape2)
+require(readxl)
+require(SPEI)
+require(hydroTSM)
+```
+
+List of GCMs(global climate models) used.
+```{r}
+#canesm2, ccsm4, cesm1-bgc, cmcc-cms, cnrm-cm5, csiro-mk3-6-0, gfdl-cm3, gfdl-esm2g, hadgem2-cc, hadgem2-es, inmcm4, miroc5, mpi-esm-lr, mri-cgcm3, norems1-m
+#canesm2, ccms4, cesm1-bgc, cmcc-cms, cnrm-cm5, gfdl-cm3, hadgem2-cc, hadgem2-es, miroc5
+gcm<-"miroc5"
+```
+
+Reading in the Data for rainfall and potential evapotranspiration.
+```{r}
+rainfall<-read.zoo(paste("D:/RStudio/Climate Change/BCSD_daily_3/loca_daily_meteorology/",gcm,"_rcp85_pr_stn_77.txt", sep=""))
+evapotrans<-read.zoo(paste("D:/RStudio/Climate Change/EvapoTrans/",gcm,"_rcp85_pet_natveg_stn_77_daily.txt",sep=""))
+speidata<-rainfall-evapotrans
+```
+
+General housekeeping, turning the data into monthly data, and rounding all of the numbers to the first decimal place (just for everything to look cleaner)
+```{r}
+names(speidata)=c("Date","Data")
+newdata<-daily2monthly(speidata, FUN=sum, na.rm=TRUE)
+newdata2<-data.frame(newdata)
+newdata2[,2]<-rownames(newdata2)
+newdata2[,3]<-newdata2[,1]
+newdata2<-newdata2[-1]
+newdata2<-data.frame(newdata2, row.names=NULL)
+newdata2[,3]<-rep(c("January","Febuary","March","April","May","June","July","August","September","October","November","December"),150)
+newdata2[,2]<-round(newdata2[,2], digits=1)
+```
+
+Adding the years into the data frame (12x1950, 12x1951, etc)
+```{r}
+x<-1950:2099
+for (i in 1:150)
+{
+  newdata2[i*12-11,4]<-x[i]
+  newdata2[i*12-10,4]<-x[i]
+  newdata2[i*12-9,4]<-x[i]
+  newdata2[i*12-8,4]<-x[i]
+  newdata2[i*12-7,4]<-x[i]
+  newdata2[i*12-6,4]<-x[i]
+  newdata2[i*12-5,4]<-x[i]
+  newdata2[i*12-4,4]<-x[i]
+  newdata2[i*12-3,4]<-x[i]
+  newdata2[i*12-2,4]<-x[i]
+  newdata2[i*12-1,4]<-x[i]
+  newdata2[i*12,4]<-x[i]
+}
+```
+
+Creating a new data frame that can run in the SPEI package. The data frame needs a year, a month, and a values column.
+```{r}
+data1<-data.frame(matrix(nrow=12, ncol=151))
+data1[,1]<-c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+
+for (i in 1:150)
+{
+  for (j in 1:12)
+  {
+    data1[j,i+1]<-newdata2[(j+12*i-12),2]
+  }
+}
+names(data1)<-c("Months",1950:2099)
+newdata3<-data.frame(matrix(nrow=1800,ncol=1))
+newdata3[,1]<-newdata2[,4]
+newdata3[,2]<-c(rep(1:12,150))
+newdata3[,3]<-newdata2[,2]
+names(newdata3)<-c("YEAR","MONTH","PRCP")
+spidata<-spei(newdata3$PRCP, scale=36, distribution = 'log-Logistic')
+```
+
+The plot of the SPEI data.
+```{r}
+plot(spidata)
+```
+
+Important values to note.
+```{r, include=FALSE}
+a<-data.frame(print(spidata))
+c<-c(a[,1])
+trends<-as.integer(ifelse(c<0,0,1))
+zero<-length(which(trends==0))
+ones<-length(which(trends==1))
+trends1<-as.integer(ifelse(c< -1,0,1))
+zero1<-length(which(trends1==0))
+trends2<-as.integer(ifelse(c>1,0,1))
+ones1<-length(which(trends2==0))
+```
+
+ts[cont]<-mean(c[cont]:c[(cont+599)], na.rm=TRUE)
+```{r}
+ts<-rep(0,1201)
+ts1<-rep(0,600)
+for (cont in 36:1201)
+{
+  ts1<-c[cont:(cont+599)]
+  counting<-sum(ts1< (-1))
+  ts[cont]<-counting
+}
+ts<-ts[37:1201]/12
+```
+
+
+
+```{r}
+time<-seq(1978,2075, by=1/12)
+timeseries<-data.frame(time, ts)
+tsplot<-ggplot(timeseries, aes(x=time, y=ts))+geom_point()+theme_bw()+
+  geom_abline(intercept=106.58960, slope=-0.04772)+
+  scale_x_continuous(breaks = seq(1975,2075, by=10),limits=c(1978,2075),expand=c(0,0))+
+  scale_y_continuous(breaks = seq(0,20, by=2),limits=c(0,20),expand=c(0,0))+
+  geom_hline(yintercept=0)+xlab("Year")+ylab("Number of Drought Years")
+tsplot
+
+```
+
+
+
+
