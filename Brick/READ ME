@@ -1,0 +1,7 @@
+Filter.R has the bartlett noise filter
+
+tsbrick.R outputs the timeseries
+
+brickdata.R uses the timeseries and produces a dataframe
+
+statistics.R is just a test run using all of the functions in one script
